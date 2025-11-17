@@ -1,0 +1,214 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <time.h>
+ 
+// ============================================================================
+// ESTRUTURAS DE DADOS E MACROS
+// ============================================================================
+
+typedef struct {
+    long long comparacoes;
+    long long trocas;
+} Metricas;
+
+#define CONTAR_COMPARACAO(m) ((m)->comparacoes++)
+#define CONTAR_TROCA(m) ((m)->trocas++)
+
+// ============================================================================
+// FUNÇÕES UTILITÁRIAS
+// ============================================================================
+
+void resetar_metricas(Metricas *m) {
+    m->comparacoes = 0;
+    m->trocas = 0;
+}
+
+void trocar(int *a, int *b, Metricas *m) {
+    CONTAR_TROCA(m);
+    int temp = *a;
+    *a = *b;
+    *b = temp;
+}
+
+void imprimir_vetor(int *v, int n, const char *titulo) {
+    printf("%s: ", titulo);
+    for (int i = 0; i < n; i++) {
+        printf("%d ", v[i]);
+    }
+    printf("\n");
+}
+
+void copiar_vetor(int *destino, int *origem, int n) {
+    for (int i = 0; i < n; i++) {
+        destino[i] = origem[i];
+    }
+}
+
+int* converter_rgm_para_vetor(const char *rgm, int *tamanho) {
+    *tamanho = strlen(rgm);
+    int *vetor = (int *)malloc(*tamanho * sizeof(int));
+    if (vetor == NULL) {
+        fprintf(stderr, "Erro de alocação de memória para vetor RGM.\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    for (int i = 0; i < *tamanho; i++) {
+        vetor[i] = rgm[i] - '0';
+    }
+    
+    return vetor;
+}
+
+// ============================================================================
+// ALGORITMOS DE ORDENAÇÃO
+// ============================================================================
+
+void quick_sort(int *v, int n, Metricas *m); // Declaração para que possa ser usada abaixo
+
+static int particionar(int *v, int inicio, int fim, Metricas *m) {
+    int pivo = v[fim];
+    int i = inicio - 1;
+    
+    for (int j = inicio; j < fim; j++) {
+        CONTAR_COMPARACAO(m);
+        if (v[j] <= pivo) {
+            i++;
+            if (i != j) { 
+                trocar(&v[i], &v[j], m);
+            }
+        }
+    }
+    
+    if (i + 1 != fim) { 
+        trocar(&v[i + 1], &v[fim], m);
+    }
+    
+    return i + 1;
+}
+
+static void quick_sort_recursivo(int *v, int inicio, int fim, Metricas *m) {
+    if (inicio < fim) {
+        int pi = particionar(v, inicio, fim, m);
+        quick_sort_recursivo(v, inicio, pi - 1, m);
+        quick_sort_recursivo(v, pi + 1, fim, m);
+    }
+}
+
+void quick_sort(int *v, int n, Metricas *m) {
+    resetar_metricas(m); 
+    if (n > 1) {
+        quick_sort_recursivo(v, 0, n - 1, m);
+    }
+}
+
+// ============================================================================
+// FUNÇÃO DE BENCHMARK
+// ============================================================================
+
+double executar_ordenacao_benchmark(void (*algoritmo_ordenacao)(int*, int, Metricas*), int *v_original, int n, Metricas *m) {
+    int *v_copia = (int *)malloc(n * sizeof(int));
+    if (v_copia == NULL) {
+        fprintf(stderr, "Erro de alocação de memória para cópia do vetor.\n");
+        exit(EXIT_FAILURE);
+    }
+    copiar_vetor(v_copia, v_original, n);
+    
+    clock_t inicio = clock();
+    algoritmo_ordenacao(v_copia, n, m); 
+    clock_t fim = clock();
+    
+    double tempo_ms = 1000.0 * (double)(fim - inicio) / CLOCKS_PER_SEC;
+    
+    imprimir_vetor(v_copia, n, "Vetor Ordenado");
+    
+    free(v_copia);
+    
+    return tempo_ms;
+}
+
+// ============================================================================
+// LÓGICA PRINCIPAL DO PROGRAMA
+// ============================================================================
+
+int exibir_menu() {
+    int escolha;
+    printf("\n========================================\n");
+    printf("  MENU DE OPÇÕES DE ORDENAÇÃO\n");
+    printf("========================================\n");
+    printf("1. Ordenar meu RGM (44947615) usando Quick Sort\n");
+    printf("2. Sair\n");
+    printf("Escolha uma opção: ");
+    scanf("%d", &escolha);
+    while (getchar() != '\n'); // Limpar o buffer do teclado
+    return escolha;
+}
+
+void exibir_resultados(const char *metodo, int n, const char *caso, Metricas *m, double tempo_ms) {
+    printf("\n========================================\n");
+    printf("  MÉTRICAS DETALHADAS\n");
+    printf("========================================\n");
+    printf("Método:       %s\n", metodo);
+    printf("Tamanho (N):  %d dígitos\n", n);
+    printf("Caso:         %s\n", caso);
+    printf("Comparações:  %lld\n", m->comparacoes);
+    printf("Trocas:       %lld\n", m->trocas);
+    printf("Tempo:        %.6f ms\n", tempo_ms);
+    printf("========================================\n");
+    
+    printf("\n========================================\n");
+    printf("  RESULTADOS (Formato CSV)\n");
+    printf("========================================\n");
+    printf("metodo,N,caso,comparacoes,trocas,tempo_ms\n");
+    printf("%s,%d,%s,%lld,%lld,%.6f\n", 
+           metodo, 
+           n, 
+           caso, 
+           m->comparacoes, 
+           m->trocas, 
+           tempo_ms);
+    printf("========================================\n");
+}
+
+int main() {
+    printf("========================================\n");
+    printf("  ANALISADOR DE ALGORITMOS DE ORDENAÇÃO\n");
+    printf("========================================\n\n");
+    
+    int escolha;
+    const char *rgm_str = "45472271";
+    Metricas metricas;
+
+    do {
+        escolha = exibir_menu();
+
+        switch (escolha) {
+            case 1: {
+                int tamanho_rgm;
+                // Cria um novo vetor com os dígitos do RGM a cada execução
+                // para garantir que sempre estamos começando com o vetor original não modificado.
+                int *digitos_rgm_para_ordenar = converter_rgm_para_vetor(rgm_str, &tamanho_rgm);
+
+                printf("\nVocê escolheu ordenar o RGM: %s\n", rgm_str);
+                imprimir_vetor(digitos_rgm_para_ordenar, tamanho_rgm, "Vetor Original do RGM");
+                printf("\nExecutando Quick Sort no RGM...\n");
+
+                double tempo_ms = executar_ordenacao_benchmark(quick_sort, digitos_rgm_para_ordenar, tamanho_rgm, &metricas);
+                
+                exibir_resultados("Quick Sort (Lomuto)", tamanho_rgm, "RGM", &metricas, tempo_ms);
+
+                // Libera a memória alocada para o vetor RGM após cada uso
+                free(digitos_rgm_para_ordenar);
+                break;
+            }
+            case 2:
+                printf("Saindo do programa. Obrigado!\n");
+                break;
+            default:
+                printf("Opção inválida. Por favor, tente novamente.\n");
+                break;
+        }
+    } while (escolha != 2);
+    
+    return 0;
+}
